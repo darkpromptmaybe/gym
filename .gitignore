@@ -1,0 +1,23 @@
+# Backend
+backend/node_modules/
+backend/.next/
+backend/.env.local
+backend/.vercel
+
+# App
+app/.dart_tool/
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+
+# Environment
+*.env.local
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
