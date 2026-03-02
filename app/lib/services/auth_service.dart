@@ -11,9 +11,8 @@ class AuthService extends ChangeNotifier {
   Map<String, dynamic>? _user;
   bool _isLoading = true;
   
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['email', 'profile'],
-  );
+  // GoogleSignIn will only be initialized when needed (when user clicks button)
+  GoogleSignIn? _googleSignIn;
 
   bool get isAuthenticated => _token != null;
   bool get isLoading => _isLoading;
@@ -164,8 +163,15 @@ class AuthService extends ChangeNotifier {
 
   Future<Map<String, dynamic>> signInWithGoogle() async {
     try {
+      // Initialize GoogleSignIn only when needed
+      _googleSignIn ??= GoogleSignIn(
+        scopes: ['email', 'profile'],
+        // For web, clientId will be read from meta tag in index.html
+        // For production, set your Google OAuth Client ID here or in meta tag
+      );
+      
       // Trigger the Google Sign-In flow
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      final GoogleSignInAccount? googleUser = await _googleSignIn!.signIn();
       
       if (googleUser == null) {
         return {'success': false, 'error': 'Sign in cancelled'};
