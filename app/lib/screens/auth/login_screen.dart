@@ -86,10 +86,15 @@ class _LoginScreenState extends State<LoginScreen> {
     final authService = context.read<AuthService>();
     final googleUrl = authService.getGoogleSignInUrl();
     
-    // Open Google OAuth in browser/same window
+    // Open Google OAuth in same window for web, external for mobile
     final uri = Uri.parse(googleUrl);
     if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.platformDefault);
+      // For web, use webOnlyWindowName to navigate in same window
+      await launchUrl(
+        uri, 
+        mode: LaunchMode.platformDefault,
+        webOnlyWindowName: '_self', // This makes it navigate in same window on web
+      );
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
