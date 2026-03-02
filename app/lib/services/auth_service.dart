@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService extends ChangeNotifier {
   static const String baseUrl = 'https://gym-backend-two-bay.vercel.app';
@@ -9,6 +10,10 @@ class AuthService extends ChangeNotifier {
   String? _token;
   Map<String, dynamic>? _user;
   bool _isLoading = true;
+  
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile'],
+  );
 
   bool get isAuthenticated => _token != null;
   bool get isLoading => _isLoading;
@@ -154,6 +159,52 @@ class AuthService extends ChangeNotifier {
     } catch (e) {
       debugPrint('Get profile error: $e');
       return null;
+    }
+  }
+
+  Future<Map<String, dynamic>> signInWithGoogle() async {
+    try {
+      // Trigger the Google Sign-In flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      
+      if (googleUser == null) {
+        return {'success': false, 'error': 'Sign in cancelled'};
+      }
+
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      // Send Google user data to backend
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/auth/google'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': googleUser.email,
+          'google_id': googleUser.id,
+          'name': googleUser.displayName ?? 'User',
+          'photo_url': googleUser.photoUrl,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        _token = data['data']['access_token'];
+        _user = data['data'];
+        
+        // Save to local storage
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', _token!);
+        await prefs.setString('user_data', jsonEncode(_user));
+        
+        notifyListeners();
+        return {'success': true};
+      } else {
+        return {'success': false, 'error': data['error'] ?? 'Google sign in failed'};
+      }
+    } catch (e) {
+      debugPrint('Google sign in error: $e');
+      return {'success': false, 'error': 'Failed to sign in with Google'};
     }
   }
 }
