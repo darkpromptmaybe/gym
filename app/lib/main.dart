@@ -12,11 +12,22 @@ void main() {
     final uri = Uri.base;
     final token = uri.queryParameters['token'];
     final userJson = uri.queryParameters['user'];
+    final error = uri.queryParameters['error'];
+    final errorMessage = uri.queryParameters['message'];
     
     if (token != null && userJson != null) {
       // Store temporarily for auth service to pick up
       html.window.sessionStorage['pending_token'] = token;
       html.window.sessionStorage['pending_user'] = userJson;
+      
+      // Remove query params from URL
+      html.window.history.replaceState(null, '', uri.path);
+    } else if (error != null) {
+      // Store error for display
+      html.window.sessionStorage['oauth_error'] = error;
+      if (errorMessage != null) {
+        html.window.sessionStorage['oauth_error_message'] = errorMessage;
+      }
       
       // Remove query params from URL
       html.window.history.replaceState(null, '', uri.path);

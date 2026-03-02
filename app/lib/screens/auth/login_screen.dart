@@ -19,6 +19,36 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
 
   @override
+  void initState() {
+    super.initState();
+    // Check for OAuth errors on page load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkOAuthError();
+    });
+  }
+
+  void _checkOAuthError() {
+    final authService = context.read<AuthService>();
+    final error = authService.lastOAuthError;
+    
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Dismiss',
+            textColor: Colors.white,
+            onPressed: () {},
+          ),
+        ),
+      );
+      authService.clearOAuthError();
+    }
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();

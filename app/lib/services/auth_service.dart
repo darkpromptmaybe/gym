@@ -10,10 +10,17 @@ class AuthService extends ChangeNotifier {
   String? _token;
   Map<String, dynamic>? _user;
   bool _isLoading = true;
+  String? _lastOAuthError;
 
   bool get isAuthenticated => _token != null;
   bool get isLoading => _isLoading;
   Map<String, dynamic>? get user => _user;
+  String? get lastOAuthError => _lastOAuthError;
+  
+  void clearOAuthError() {
+    _lastOAuthError = null;
+    notifyListeners();
+  }
 
   AuthService() {
     _loadToken();
@@ -25,11 +32,21 @@ class AuthService extends ChangeNotifier {
       if (kIsWeb) {
         final pendingToken = html.window.sessionStorage['pending_token'];
         final pendingUser = html.window.sessionStorage['pending_user'];
+        final oauthError = html.window.sessionStorage['oauth_error'];
+        final oauthErrorMessage = html.window.sessionStorage['oauth_error_message'];
         
         if (pendingToken != null && pendingUser != null) {
           await handleGoogleCallback(pendingToken, pendingUser);
           html.window.sessionStorage.remove('pending_token');
           html.window.sessionStorage.remove('pending_user');
+          _isLoading = false;
+          notifyListeners();
+          return;
+        } else if (oauthError != null) {
+          // Store OAuth error for display
+          _lastOAuthError = oauthErrorMessage ?? _getErrorMessage(oauthError);
+          html.window.sessionStorage.remove('oauth_error');
+          html.window.sessionStorage.remove('oauth_error_message');
           _isLoading = false;
           notifyListeners();
           return;
@@ -178,6 +195,21 @@ class AuthService extends ChangeNotifier {
     // Get current URL for redirect back
     final currentUrl = kIsWeb ? Uri.base.toString().split('?')[0] : 'http://localhost:54321';
     return '$baseUrl/api/auth/google/login?redirect=$currentUrl';
+  }
+  
+  String _getErrorMessage(String error) {
+    switch (error) {
+      case 'access_denied':
+        return 'Google Sign-In was cancelled';
+      case 'missing_code':
+        return 'Missing authorization code from Google';
+      case 'authentication_failed':
+        return 'Google authentication failed. Please try again.';
+      case 'not_configured':
+        return 'Google Sign-In is not configured on the server. Please contact support.';
+      default:
+        return 'Google Sign-In failed: $error';
+    }
   }
 
   Future<Map<String, dynamic>> handleGoogleCallback(String token, String userJson) async {

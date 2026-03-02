@@ -6,10 +6,13 @@ const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost
 
 export async function GET(request: NextRequest) {
   if (!GOOGLE_CLIENT_ID) {
-    return NextResponse.json(
-      { error: 'Google OAuth not configured. Please set GOOGLE_CLIENT_ID in environment variables.' },
-      { status: 500 }
-    );
+    // Redirect back to frontend with error
+    const searchParams = request.nextUrl.searchParams;
+    const redirectUrl = searchParams.get('redirect') || 'http://localhost:54321';
+    const errorUrl = new URL(redirectUrl);
+    errorUrl.searchParams.set('error', 'not_configured');
+    errorUrl.searchParams.set('message', 'Google OAuth is not configured on the server. Please add GOOGLE_CLIENT_ID to environment variables.');
+    return NextResponse.redirect(errorUrl.toString());
   }
 
   // Get the redirect URL from query params (where to send user after auth)
