@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -208,9 +209,19 @@ class AuthService extends ChangeNotifier {
       } else {
         return {'success': false, 'error': data['error'] ?? 'Google sign in failed'};
       }
+    } on PlatformException catch (e) {
+      debugPrint('Google sign in platform error: $e');
+      if (e.code == 'sign_in_failed' && e.message != null && e.message!.contains('ClientID')) {
+        return {'success': false, 'error': 'Google Sign-In not configured. Please add Client ID in web/index.html'};
+      }
+      return {'success': false, 'error': 'Google Sign-In error: ${e.message}'};
     } catch (e) {
       debugPrint('Google sign in error: $e');
-      return {'success': false, 'error': 'Failed to sign in with Google'};
+      String errorMsg = e.toString();
+      if (errorMsg.contains('ClientID') || errorMsg.contains('appClientId')) {
+        return {'success': false, 'error': 'Google Sign-In not configured. See GOOGLE_OAUTH_SETUP.md'};
+      }
+      return {'success': false, 'error': 'Failed to sign in with Google. Check console for details.'};
     }
   }
 }
