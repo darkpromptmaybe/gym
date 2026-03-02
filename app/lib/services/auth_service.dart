@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'dart:html' as html show window;
 
 class AuthService extends ChangeNotifier {
   static const String baseUrl = 'https://gym-backend-two-bay.vercel.app';
@@ -11,9 +10,6 @@ class AuthService extends ChangeNotifier {
   String? _token;
   Map<String, dynamic>? _user;
   bool _isLoading = true;
-  
-  // GoogleSignIn will only be initialized when needed (when user clicks button)
-  GoogleSignIn? _googleSignIn;
 
   bool get isAuthenticated => _token != null;
   bool get isLoading => _isLoading;
@@ -25,6 +21,21 @@ class AuthService extends ChangeNotifier {
 
   Future<void> _loadToken() async {
     try {
+      // Check for pending OAuth callback on web
+      if (kIsWeb) {
+        final pendingToken = html.window.sessionStorage['pending_token'];
+        final pendingUser = html.window.sessionStorage['pending_user'];
+        
+        if (pendingToken != null && pendingUser != null) {
+          await handleGoogleCallback(pendingToken, pendingUser);
+          html.window.sessionStorage.remove('pending_token');
+          html.window.sessionStorage.remove('pending_user');
+          _isLoading = false;
+          notifyListeners();
+          return;
+        }
+      }
+      
       final prefs = await SharedPreferences.getInstance();
       _token = prefs.getString('auth_token');
       final userJson = prefs.getString('user_data');
@@ -162,66 +173,28 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>> signInWithGoogle() async {
+  // Google Sign-In using backend OAuth flow
+  String getGoogleSignInUrl() {
+    // Get current URL for redirect back
+    final currentUrl = kIsWeb ? Uri.base.toString().split('?')[0] : 'http://localhost:54321';
+    return '$baseUrl/api/auth/google/login?redirect=$currentUrl';
+  }
+
+  Future<Map<String, dynamic>> handleGoogleCallback(String token, String userJson) async {
     try {
-      // Initialize GoogleSignIn only when needed
-      _googleSignIn ??= GoogleSignIn(
-        scopes: ['email', 'profile'],
-        // For web, clientId will be read from meta tag in index.html
-        // For production, set your Google OAuth Client ID here or in meta tag
-      );
+      _token = token;
+      _user = jsonDecode(userJson);
       
-      // Trigger the Google Sign-In flow
-      final GoogleSignInAccount? googleUser = await _googleSignIn!.signIn();
+      // Save to local storage
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('auth_token', _token!);
+      await prefs.setString('user_data', jsonEncode(_user));
       
-      if (googleUser == null) {
-        return {'success': false, 'error': 'Sign in cancelled'};
-      }
-
-      // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-
-      // Send Google user data to backend
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/auth/google'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': googleUser.email,
-          'google_id': googleUser.id,
-          'name': googleUser.displayName ?? 'User',
-          'photo_url': googleUser.photoUrl,
-        }),
-      );
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 200 && data['success'] == true) {
-        _token = data['data']['access_token'];
-        _user = data['data'];
-        
-        // Save to local storage
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', _token!);
-        await prefs.setString('user_data', jsonEncode(_user));
-        
-        notifyListeners();
-        return {'success': true};
-      } else {
-        return {'success': false, 'error': data['error'] ?? 'Google sign in failed'};
-      }
-    } on PlatformException catch (e) {
-      debugPrint('Google sign in platform error: $e');
-      if (e.code == 'sign_in_failed' && e.message != null && e.message!.contains('ClientID')) {
-        return {'success': false, 'error': 'Google Sign-In not configured. Please add Client ID in web/index.html'};
-      }
-      return {'success': false, 'error': 'Google Sign-In error: ${e.message}'};
+      notifyListeners();
+      return {'success': true};
     } catch (e) {
-      debugPrint('Google sign in error: $e');
-      String errorMsg = e.toString();
-      if (errorMsg.contains('ClientID') || errorMsg.contains('appClientId')) {
-        return {'success': false, 'error': 'Google Sign-In not configured. See GOOGLE_OAUTH_SETUP.md'};
-      }
-      return {'success': false, 'error': 'Failed to sign in with Google. Check console for details.'};
+      debugPrint('Google callback error: $e');
+      return {'success': false, 'error': 'Failed to process Google sign-in'};
     }
   }
 }

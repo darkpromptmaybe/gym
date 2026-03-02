@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../services/auth_service.dart';
 import 'register_screen.dart';
 
@@ -52,20 +53,18 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleGoogleSignIn() async {
-    setState(() => _isLoading = true);
-
     final authService = context.read<AuthService>();
-    final result = await authService.signInWithGoogle();
-
-    setState(() => _isLoading = false);
-
-    if (mounted) {
-      if (result['success'] == true) {
-        // Navigation handled by Consumer in main.dart
-      } else {
+    final googleUrl = authService.getGoogleSignInUrl();
+    
+    // Open Google OAuth in browser/same window
+    final uri = Uri.parse(googleUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.platformDefault);
+    } else {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['error'] ?? 'Google sign in failed'),
+          const SnackBar(
+            content: Text('Could not open Google Sign-In'),
             backgroundColor: Colors.red,
           ),
         );
